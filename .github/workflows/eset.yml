@@ -1,71 +1,26 @@
-name: Account and Key Generator
+name: ESET Key Generator
 
 on:
   workflow_dispatch:
     inputs:
-      account:
-        description: 'Number of Accounts to be generated (default = 0)'
-        required: false
-        default: '0'
-        type: string
       key:
-        description: 'Number of Keys to be generated (default = 1)'
+        description: 'Number of Keys to be generated'
         required: false
         default: '1'
         type: string
       mail:
-        description: 'Choose the mail provider to generate license'
+        description: 'Choose the mail provider'
         required: true
         type: choice
         options:
           - 1secmail
           - guerrillamail
-          - developermail
-          - mailticking
-          - fakemail
-          - inboxes
-          - incognitomail
-          - emailfake
-        default: emailfake
-      key_type:
-        description: 'Modes of operation'
-        required: true
-        type: choice
-        options:
-          - --key
-          - --small-business-key
-        default: --key
-      os:
-        description: 'Operating System of runner (Linux, macOS, Windows)'
-        required: true
-        type: choice
-        options:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
-        default: windows-latest
-      branch:
-        description: "Repository branch (don't touch it if you don't know what it is!!!)"
-        required: false
-        type: choice
-        options:
-          - main
-          - test
-        default: main
+        default: 1secmail
 
 jobs:
-  generate-account-and-key:
-    runs-on: ${{ github.event.inputs.os || 'windows-latest' }}
+  generate-key:
+    runs-on: windows-latest
     steps:
-      - name: Set Variables
-        id: vars
-        shell: bash 
-        run: |
-          echo "account=${{ github.event.inputs.account || '0' }}" >> $GITHUB_OUTPUT
-          echo "key=${{ github.event.inputs.key || '1' }}" >> $GITHUB_OUTPUT
-          echo "mail=${{ github.event.inputs.mail || 'emailfake' }}" >> $GITHUB_OUTPUT
-          echo "key_type=${{ github.event.inputs.key_type || '--key' }}" >> $GITHUB_OUTPUT
-
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -79,42 +34,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Generate Accounts and Keys
+      - name: Generate ESET Keys
         shell: pwsh
         run: |
-          $ACCOUNT = "${{ steps.vars.outputs.account }}"
-          $KEY = "${{ steps.vars.outputs.key }}"
-          $MAIL = "${{ steps.vars.outputs.mail }}"
-          $KEY_TYPE = "${{ steps.vars.outputs.key_type }}"
-
-          # Generate accounts if requested
-          if ([int]$ACCOUNT -gt 0) {
-            Write-Output "Generating $ACCOUNT accounts..."
-            python main.py --auto-detect-browser --account --email-api "$MAIL" --skip-update-check --no-logo --disable-progress-bar --disable-logging --repeat $ACCOUNT
-            
-            if (Test-Path "*.txt" -Include "*ACCOUNTS*") {
-              Write-Output "=== GENERATED ACCOUNTS ==="
-              Get-Content -Path ./*ACCOUNTS*.txt -ErrorAction SilentlyContinue
-              Write-Output "=========================="
-            }
-          }
-
-          # Generate keys if requested
-          if ([int]$KEY -gt 0) {
-            Write-Output "Generating $KEY keys..."
-            python main.py --auto-detect-browser $KEY_TYPE --email-api "$MAIL" --skip-update-check --no-logo --disable-progress-bar --disable-logging --repeat $KEY
-            
-            if (Test-Path "*.txt" -Include "*KEYS*") {
-              Write-Output "=== GENERATED KEYS ==="
-              Get-Content -Path ./*KEYS*.txt -ErrorAction SilentlyContinue
-              Write-Output "======================"
-            }
+          $KEY = "${{ github.event.inputs.key || '1' }}"
+          $MAIL = "${{ github.event.inputs.mail || '1secmail' }}"
+          
+          Write-Output "Generating $KEY keys using $MAIL and Firefox..."
+          
+          # Генерируем ключи через Firefox
+          python main.py --firefox --key --email-api "$MAIL" --skip-update-check --no-logo --disable-progress-bar --disable-logging --repeat $KEY
+          
+          # Проверяем результаты
+          if (Test-Path "*.txt" -Include "*KEYS*") {
+            Write-Output "=== SUCCESS: GENERATED KEYS ==="
+            Get-Content -Path ./*KEYS*.txt -ErrorAction SilentlyContinue
+            Write-Output "==============================="
+          } else {
+            Write-Output "=== No key files found ==="
           }
 
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
-          name: eset-results
+          name: eset-keys-result
           path: |
             *.txt
           retention-days: 1
+          if-no-files-found: warn
